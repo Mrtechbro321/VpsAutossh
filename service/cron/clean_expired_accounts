@@ -1,0 +1,1 @@
+0 0 * * * root /etc/vpsautossh/scripts/system/clean_expired_accounts.sh > /dev/null 2>&1
