@@ -1,0 +1,14 @@
+[Unit]
+Description=WebSocket Proxy for SSH
+After=network.target
+
+[Service]
+User=root
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
+NoNewPrivileges=true
+ExecStart=/usr/bin/python3 -c 'import socket, threading, sys\n\ndef handle_client(client_socket, remote_host, remote_port):\n    try:\n        remote_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)\n        remote_socket.connect((remote_host, remote_port))\n        \n        def forward_data(source, destination):\n            while True:\n                data = source.recv(4096)\n                if not data:\n                    break\n                destination.sendall(data)\n        \n        client_thread = threading.Thread(target=forward_data, args=(client_socket, remote_socket))\n        remote_thread = threading.Thread(target=forward_data, args=(remote_socket, client_socket))\n        \n        client_thread.start()\n        remote_thread.start()\n        \n        client_thread.join()\n        remote_thread.join()\n\n    except Exception as e:\n        pass # print(f"Error: {e}")\n    finally:\n        client_socket.close()\n        remote_socket.close()\n\ndef start_server(local_port, remote_host, remote_port):\n    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)\n    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)\n    server.bind(("0.0.0.0", local_port))\n    server.listen(5)\n    print(f"[*] Listening on 0.0.0.0:{local_port} forwarding to {remote_host}:{remote_port}")\n    \n    while True:\n        client_socket, addr = server.accept()\n        print(f"[*] Accepted connection from {addr[0]}:{addr[1]}")\n        client_handler = threading.Thread(target=handle_client, args=(client_socket, remote_host, remote_port))\n        client_handler.start()\n\nif __name__ == "__main__":\n    if len(sys.argv) != 4:\n        print("Usage: python3 ws-proxy.py <local_port> <remote_host> <remote_port>")\n        sys.exit(1)\n    local_port = int(sys.argv[1])\n    remote_host = sys.argv[2]\n    remote_port = int(sys.argv[3])\n    start_server(local_port, remote_host, remote_port)\' 8888 127.0.0.1 22
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
